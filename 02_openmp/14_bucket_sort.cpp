@@ -8,50 +8,31 @@ int main() {
   int range = 5;
   std::vector<int> key(n);
 
-  #pragma omp parallel for
-  for (int i = 0; i < n; i++) {
+  for (int i=0; i<n; i++) {
     key[i] = rand() % range;
-  }
-
-  for (int i = 0; i < n; i++) {
     printf("%d ", key[i]);
   }
   printf("\n");
 
   std::vector<int> bucket(range, 0);
-
-  #pragma omp parallel
-  {
-    std::vector<int> local_bucket(range, 0);
-
-    #pragma omp for
-    for (int i = 0; i < n; i++) {
-      local_bucket[key[i]]++;
-    }
-
-    #pragma omp critical
-    {
-      for (int i = 0; i < range; i++) {
-        bucket[i] += local_bucket[i];
-      }
-    }
-  }
+  for (int i=0; i<n; i++)
+    bucket[key[i]]++;
 
   std::vector<int> offset(range, 0);
-  for (int i = 1; i < range; i++) {
-    offset[i] = offset[i - 1] + bucket[i - 1];
-  }
+  for (int i=1; i<range; i++) 
+    offset[i] = offset[i-1] + bucket[i-1];
 
   #pragma omp parallel for
-  for (int i = 0; i < range; i++) {
+  for (int i=0; i<range; i++) {
     int j = offset[i];
-    int count = bucket[i];
+    int count = bucket[i];  
+
     for (int k = 0; k < count; k++) {
       key[j + k] = i;
     }
   }
 
-  for (int i = 0; i < n; i++) {
+  for (int i=0; i<n; i++) {
     printf("%d ", key[i]);
   }
   printf("\n");
