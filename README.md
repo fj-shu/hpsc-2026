@@ -1,6 +1,7 @@
 # hpc_lecture
 
 Student ID: 26M30854
+Student Name: Fangjie Shu
 
 |          | Topic                                | Sample code               |
 | -------- | ------------------------------------ | ------------------------- |
