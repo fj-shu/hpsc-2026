@@ -3,6 +3,8 @@
 #include <vector>
 #include <omp.h>
 
+const int cutoff = 4;
+
 void merge(std::vector<int>& vec, int begin, int mid, int end) {
   std::vector<int> tmp(end-begin+1);
   int left = begin;
@@ -24,10 +26,11 @@ void merge(std::vector<int>& vec, int begin, int mid, int end) {
 void merge_sort(std::vector<int>& vec, int begin, int end) {
   if(begin < end) {
     int mid = (begin + end) / 2;
-    #pragma omp task shared(vec)
+
+    #pragma omp task shared(vec) if(end - begin > cutoff)
     merge_sort(vec, begin, mid);
     
-    #pragma omp task shared(vec)
+    #pragma omp task shared(vec) if(end - begin > cutoff)
     merge_sort(vec, mid+1, end);
     
     #pragma omp taskwait
@@ -47,7 +50,7 @@ int main() {
   {
     #pragma omp single
       {
-        merge_sort(vec, 0, n-1)
+        merge_sort(vec, 0, n-1);
       } 
   }
   for (int i=0; i<n; i++) {
