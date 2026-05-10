@@ -1,0 +1,241 @@
+本次问题总结与笔记
+====================
+
+一、问题背景
+------------
+
+原始文件：
+
+  06_cuda/13_bucket_sort.cpp
+
+原来的 bucket sort 是 CPU 版本，主要使用：
+
+  std::vector<int> key
+  std::vector<int> bucket
+  for 循环统计 bucket
+  for 循环把结果写回 key
+
+需求是：
+
+  只修改当前文件 06_cuda/13_bucket_sort.cpp
+  让它使用 CUDA
+  不修改 Makefile 或其他文件
+
+
+二、代码修改思路
+----------------
+
+把原来的 CPU bucket sort 改成 CUDA 版本，核心变化是：
+
+1. 用 cudaMallocManaged 分配统一内存
+
+   int *key, *bucket, *offset;
+   cudaMallocManaged(&key, n*sizeof(int));
+   cudaMallocManaged(&bucket, range*sizeof(int));
+   cudaMallocManaged(&offset, range*sizeof(int));
+
+2. 新增 CUDA kernel 清空 bucket
+
+   __global__ void clearBucket(int *bucket, int range)
+
+3. 新增 CUDA kernel 统计 bucket
+
+   __global__ void fillBucket(int *key, int *bucket, int n)
+
+   其中使用 atomicAdd：
+
+   atomicAdd(&bucket[key[i]], 1);
+
+   因为多个 GPU 线程可能同时更新同一个 bucket，所以需要原子操作。
+
+4. 新增 CUDA kernel 计算 offset
+
+   __global__ void scanBucket(int *bucket, int *offset, int range)
+
+   offset 表示每个 bucket 在排序后数组中的起始位置。
+
+5. 新增 CUDA kernel 把排序结果写回 key
+
+   __global__ void fillKey(int *key, int *bucket, int *offset, int range)
+
+6. 启动 kernel 后使用同步
+
+   cudaDeviceSynchronize();
+
+7. 最后释放 CUDA 统一内存
+
+   cudaFree(key);
+   cudaFree(bucket);
+   cudaFree(offset);
+
+
+三、编译注意
+------------
+
+因为文件后缀仍然是 .cpp，但是里面使用了 CUDA 语法，例如：
+
+  __global__
+  blockIdx.x
+  threadIdx.x
+  kernel<<<...>>>
+
+所以不能用普通 g++ 编译。
+
+如果不改 Makefile，可以手动这样编译：
+
+  nvcc -x cu 06_cuda/13_bucket_sort.cpp
+
+如果当前目录已经在 06_cuda 里面：
+
+  nvcc -x cu 13_bucket_sort.cpp
+
+
+四、Git 查看未提交修改
+---------------------
+
+查看哪些文件被修改：
+
+  git status
+
+查看所有未提交的具体代码修改：
+
+  git diff
+
+只查看某个文件的修改：
+
+  git diff 06_cuda/13_bucket_sort.cpp
+
+查看修改统计：
+
+  git diff --stat
+
+
+五、Git 查看已经 commit 的修改
+------------------------------
+
+查看 commit 历史：
+
+  git log
+
+简洁显示 commit 历史：
+
+  git log --oneline
+
+查看某个 commit 的具体修改：
+
+  git show <commit-id>
+
+查看最近一次 commit：
+
+  git show HEAD
+
+只查看某个文件在最近一次 commit 中的修改：
+
+  git show HEAD -- 06_cuda/13_bucket_sort.cpp
+
+只显示 diff 内容，不显示 commit 说明：
+
+  git show --format= HEAD
+
+带统计信息显示：
+
+  git show --stat -p HEAD
+
+
+六、在 git log 中显示代码修改行
+-------------------------------
+
+git log 默认只显示 commit 记录。
+
+如果想显示每个 commit 修改过的代码行，加 -p：
+
+  git log -p
+
+简洁 commit 信息加代码 diff：
+
+  git log --oneline -p
+
+只看某个文件的历史改动：
+
+  git log --oneline -p -- 06_cuda/13_bucket_sort.cpp
+
+
+七、为什么 git show 里面好像只显示了几行
+----------------------------------------
+
+如果 git show 或 git diff 的底部出现：
+
+  :
+
+通常表示当前正在 Git 的分页器 less 里面。
+
+这不是只显示了 3 行，而是内容被分页显示了。
+
+常用按键：
+
+  Space   向下翻一页
+  j       向下移动一行
+  k       向上移动一行
+  b       向上翻一页
+  q       退出
+
+如果想一次性全部打印出来，不进入分页器：
+
+  git --no-pager show HEAD
+
+只看某个文件：
+
+  git --no-pager show HEAD -- 06_cuda/13_bucket_sort.cpp
+
+
+八、如何读 diff 输出
+--------------------
+
+例子：
+
+  diff --git a/06_cuda/13_bucket_sort.cpp b/06_cuda/13_bucket_sort.cpp
+
+表示 Git 正在比较这个文件修改前后的版本。
+
+  --- a/06_cuda/13_bucket_sort.cpp
+  +++ b/06_cuda/13_bucket_sort.cpp
+
+--- 表示旧版本。
++++ 表示新版本。
+
+  @@ -1,32 +1,66 @@
+
+表示一个修改块：
+
+  旧文件从第 1 行开始，共 32 行
+  新文件从第 1 行开始，共 66 行
+
+diff 里面的行首符号含义：
+
+  空格   这一行没有变化
+  -      这一行被删除
+  +      这一行是新增内容
+
+例如：
+
+  -#include <vector>
+
+表示删除了旧代码中的 vector 头文件。
+
+  +__global__ void clearBucket(...)
+
+表示新增了 CUDA kernel 函数。
+
+
+九、本次重点记忆
+----------------
+
+1. CUDA kernel 用 __global__ 声明。
+2. kernel 使用 <<<grid, block>>> 语法启动。
+3. 多线程同时修改同一个变量时，需要 atomicAdd 等原子操作。
+4. cudaMallocManaged 可以让 CPU 和 GPU 都访问同一块统一内存。
+5. GPU kernel 启动后，通常需要 cudaDeviceSynchronize 等待执行完成。
+6. .cpp 文件里写 CUDA 代码时，需要用 nvcc -x cu 编译。
+7. git show 默认会显示 commit 的代码 diff。
+8. git log -p 可以显示历史 commit 的代码修改。
+9. 终端底部出现冒号 : 时，通常是在 less 分页器里，按 Space 继续，按 q 退出。

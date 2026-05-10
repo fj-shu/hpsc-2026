@@ -1,0 +1,3 @@
+给15_tensorflow目录新建一个文本文件，用于记录笔记，文件名为note。
+
+删除15_tensorflow里的所有文件
